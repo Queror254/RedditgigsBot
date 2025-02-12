@@ -4,8 +4,8 @@ const sendEmail = require('./emailService');
 const checkForNewPosts = require('./fetcher');
 
 const app = express();
-const PORT = process.env.PORT || 4000;
-//const PORT = process.env.TEST_PORT || 3001;
+//const PORT = process.env.PORT || 4001;
+const PORT = process.env.TEST_PORT || 3001;
 
 // Schedule the scraping task to run every 2 minutes
 app.get('/scrape', async (req, res) => {
@@ -28,7 +28,8 @@ cron.schedule('* * * * *', async () => {
         console.log('⚡ [============     ] 75%');
         console.log('✨ [================] 100%');
         console.log('🎉 Scraping complete!');
-        console.log('📨 Found posts:', posts);
+        //console.log('📨 Found posts:', posts);
+        console.log('📨 Found posts:', posts.length);
     } catch (error) {
         console.log('❌ Error occurred!');
         console.error('🚨 Error in scheduled scraper:', error);

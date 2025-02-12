@@ -26,7 +26,7 @@ async function sendEmail(posts) {
     const emailBody = posts.map(post =>
         `<h3>${post.title}</h3>
         <p>Subreddit: ${post.subreddit}</p>
-        <p>${post.selftext}</p>
+        <p>${post.data.selftext}</p>
         <p><a href=${post.url}>View Post</a></p>`
     ).join('<hr>');
 
