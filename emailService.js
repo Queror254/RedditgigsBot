@@ -1,6 +1,6 @@
 const nodemailer = require('nodemailer');
-//const dotenv = require('dotenv');
-//dotenv.config();
+const dotenv = require('dotenv');
+dotenv.config();
 
 const transporter = nodemailer.createTransport({
     service: "Gmail",
@@ -8,10 +8,8 @@ const transporter = nodemailer.createTransport({
     port: 465,
     secure: true, // Use SSL
     auth: {
-        //user: process.env.SMTP_USER,
-        //pass: process.env.SMTP_PASS,
-        user: 'querortech.int@gmail.com',
-        pass: 'mvmbgevnbkubhzmm'
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASS,
     },
 });
 
