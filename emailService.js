@@ -26,15 +26,14 @@ async function sendEmail(posts) {
     const emailBody = posts.map(post =>
         `<h3>${post.title}</h3>
         <p>Subreddit: ${post.subreddit}</p>
-        <p>${post.data.selftext}</p>
+        <p>${post.body}</p>
         <p><a href=${post.url}>View Post</a></p>`
     ).join('<hr>');
 
-    const SMTP_USER = 'querortech.int@gmail.com';
-    const RECIPIENT_EMAIL = 'mwendavictorm@gmail.com';
+
     const mailOptions = {
-        from: `"Reddit Hiring Alerts" <${SMTP_USER}>`,
-        to: RECIPIENT_EMAIL,
+        from: `"Reddit Hiring Alerts" <${process.env.SMTP_USER}>`,
+        to: process.env.RECIPIENT_EMAIL,
         subject: `🚀 New Hiring Posts on r/forhire (${posts.length} posts)`,
         html: emailBody,
     };

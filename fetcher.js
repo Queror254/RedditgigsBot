@@ -7,13 +7,15 @@ const CSV_FILE = './posts.csv'
 //process.env.CSV_FILE;
 
 const DELAY_BETWEEN_REQUESTS = 2000;
+const MAX_RETRIES = 3;
+const BASE_DELAY = 2000;
 
 async function fetchHiringPosts() {
     try {
         const allHiringPosts = [];
         let after = null;
-        const maxPages = 10; // Fetch up to 10 pages
-        const postsPerPage = 100;
+        const maxPages = 5; // Fetch up to 10 pages
+        const postsPerPage = 50;
 
         // Expanded job-related subreddits focused on programming
         const jobSubreddits = new Set([
@@ -40,72 +42,91 @@ async function fetchHiringPosts() {
         ];
 
         for (let page = 0; page < maxPages; page++) {
-            const REDDIT_API_URL = `https://www.reddit.com/user/grandmaster_infinite/m/test_feed/new.json?limit=${postsPerPage}${after ? `&after=${after}` : ''}`
-            //const REDDIT_API_URL = `https://www.reddit.com/new.json?limit=${postsPerPage}${after ? `&after=${after}` : ''}`;
+            let retries = 0;
+            let success = false;
 
-            const response = await axios.get(REDDIT_API_URL, {
-                headers: {
-                    "User-Agent": "MyHiringBot/1.0 (by /u/YOUR_USERNAME)",
-                },
-            });
+            while (!success && retries < MAX_RETRIES) {
+                try {
+                    const REDDIT_API_URL = `https://www.reddit.com/user/grandmaster_infinite/m/test_feed/new.json?limit=${postsPerPage}${after ? `&after=${after}` : ''}`
+                    //const REDDIT_API_URL = `https://www.reddit.com/new.json?limit=${postsPerPage}${after ? `&after=${after}` : ''}`;
 
-            const posts = response.data.data.children;
-            after = response.data.data.after;
+                    const response = await axios.get(REDDIT_API_URL, {
+                        headers: {
+                            "User-Agent": "MyHiringBot/1.0 (by /u/YOUR_USERNAME)",
+                        },
+                    });
 
-            const hiringPosts = posts
-                .filter(post => {
-                    const title = post.data.title.toLowerCase();
-                    const body = post.data.selftext.toLowerCase();
-                    const subreddit = post.data.subreddit.toLowerCase();
+                    const posts = response.data.data.children;
+                    after = response.data.data.after;
 
-                    // Check if post is from a tech job subreddit
-                    const isJobSubreddit = jobSubreddits.has(subreddit);
+                    const hiringPosts = posts
+                        .filter(post => {
+                            const title = post.data.title.toLowerCase();
+                            const body = post.data.selftext.toLowerCase();
+                            const subreddit = post.data.subreddit.toLowerCase();
 
-                    // Check for hiring keywords in title (now required)
-                    const hasHiringKeyword = hiringKeywords.some(keyword =>
-                        title.includes(keyword.toLowerCase())
-                    );
+                            // Check if post is from a tech job subreddit
+                            const isJobSubreddit = jobSubreddits.has(subreddit);
 
-                    // Check for tech-related keywords in title or body
-                    const hasTechKeyword = techKeywords.some(keyword =>
-                        title.includes(keyword.toLowerCase()) ||
-                        body.includes(keyword.toLowerCase())
-                    );
+                            // Check for hiring keywords in title (now required)
+                            const hasHiringKeyword = hiringKeywords.some(keyword =>
+                                title.includes(keyword.toLowerCase())
+                            );
 
-                    // Check for hiring flair
-                    const hasHiringFlair = post.data.link_flair_css_class === 'fh-hiring' ||
-                        post.data.link_flair_css_class === 'hiring';
+                            // Check for tech-related keywords in title or body
+                            const hasTechKeyword = techKeywords.some(keyword =>
+                                title.includes(keyword.toLowerCase()) ||
+                                body.includes(keyword.toLowerCase())
+                            );
 
-                    // Check if post is not marked as closed
-                    const isNotClosed = !title.includes('closed') &&
-                        !title.includes('filled') &&
-                        !title.includes('position filled');
+                            // Check for hiring flair
+                            const hasHiringFlair = post.data.link_flair_css_class === 'fh-hiring' ||
+                                post.data.link_flair_css_class === 'hiring';
 
-                    // Now requiring hasHiringKeyword in the return condition
-                    return hasHiringKeyword &&
-                        hasTechKeyword &&
-                        isNotClosed &&
-                        (isJobSubreddit || hasHiringFlair);
-                })
-                .map(post => ({
-                    title: post.data.title,
-                    author: post.data.author,
-                    url: `https://reddit.com${post.data.permalink}`,
-                    subreddit: post.data.subreddit,
-                    created: new Date(post.data.created_utc * 1000).toISOString(),
-                    body: post.data.selftext,
-                    score: post.data.score,
-                    isJobSubreddit: jobSubreddits.has(post.data.subreddit.toLowerCase()),
-                    techKeywordsFound: findTechKeywords(post.data.title, post.data.selftext, techKeywords)
-                }));
+                            // Check if post is not marked as closed
+                            const isNotClosed = !title.includes('closed') &&
+                                !title.includes('filled') &&
+                                !title.includes('position filled');
 
-            allHiringPosts.push(...hiringPosts);
+                            // Post must have a hiring keyword AND at least one of:
+                            // - tech keywords
+                            // - not marked as closed
+                            // - from a job subreddit
+                            // - has hiring flair
+                            return hasHiringKeyword && (hasTechKeyword || isNotClosed || isJobSubreddit || hasHiringFlair);
+                        })
+                        .map(post => ({
+                            title: post.data.title,
+                            author: post.data.author,
+                            url: `https://reddit.com${post.data.permalink}`,
+                            subreddit: post.data.subreddit,
+                            created: new Date(post.data.created_utc * 1000).toISOString(),
+                            body: post.data.selftext,
+                            score: post.data.score,
+                            isJobSubreddit: jobSubreddits.has(post.data.subreddit.toLowerCase()),
+                            techKeywordsFound: findTechKeywords(post.data.title, post.data.selftext, techKeywords)
+                        }));
 
-            // If no more posts to fetch, break the loop
-            if (!after) break;
+                    allHiringPosts.push(...hiringPosts);
+                    success = true;
 
-            // Add delay between requests
-            await delay(DELAY_BETWEEN_REQUESTS);
+                    // If no more posts to fetch, break the loop
+                    if (!after) break;
+
+                    // Add delay between successful requests
+                    await delay(DELAY_BETWEEN_REQUESTS);
+
+                } catch (error) {
+                    retries++;
+                    if (error.response?.status === 429) {
+                        const backoffDelay = BASE_DELAY * Math.pow(2, retries);
+                        console.log(`Rate limited. Waiting ${backoffDelay / 1000} seconds before retry ${retries}/${MAX_RETRIES}`);
+                        await delay(backoffDelay);
+                    } else if (retries === MAX_RETRIES) {
+                        throw error; // Rethrow if we're out of retries
+                    }
+                }
+            }
         }
 
         console.log(`🔔 Found ${allHiringPosts.length} potential hiring posts`);
